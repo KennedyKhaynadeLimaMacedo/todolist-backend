@@ -1,13 +1,15 @@
 """Ponto de entrada: cria o app, registra as rotas e traduz erros em HTTP."""
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from app.api.routers import usuarios
+from app.api.routers import tasks, usuarios
 from app.core.config import obter_configuracao
 from app.core.exceptions import (
+    AcessoNaoAutorizado,
     EmailJaCadastrado,
     ErroDeDominio,
     NaoAutenticado,
@@ -15,13 +17,16 @@ from app.core.exceptions import (
     RegraDeNegocioViolada,
 )
 from app.db.database import criar_tabelas
+
 STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
     (RecursoNaoEncontrado, 404),
-    (EmailJaCadastrado, 400),
+    (EmailJaCadastrado, 409),
     (NaoAutenticado, 401),
     (RegraDeNegocioViolada, 422),
-    (ErroDeDominio, 400)
+    (ErroDeDominio, 400),
 )
+
+
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     """Confere a configuração e prepara o banco na subida da aplicação.
@@ -33,12 +38,16 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     obter_configuracao().segredo_jwt()
     criar_tabelas()
     yield
+
+
 app = FastAPI(
     title="Todo List API",
     description="Backend do ToDo List - curso Desenvolvedor Full Stack (SENAC).",
-    version="0.4.0",
+    version="0.8.0",
     lifespan=ciclo_de_vida,
 )
+
+
 @app.exception_handler(ErroDeDominio)
 async def tratar_erro_de_dominio(
     _request: Request, excecao: ErroDeDominio
@@ -49,8 +58,10 @@ async def tratar_erro_de_dominio(
     )
     cabecalhos = {"WWW-Authenticate": "Bearer"} if codigo == 401 else None
     return JSONResponse(
-       status_code=codigo, content={"detail": excecao.mensagem}, headers=cabecalhos
+        status_code=codigo, content={"detail": excecao.mensagem}, headers=cabecalhos
     )
+
+
 def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
     """Traduz um erro do Pydantic em (campo, mensagem em português)."""
     campo = str(erro["loc"][-1]) if erro.get("loc") else "dados"
@@ -68,7 +79,7 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
         "date_from_datetime_parsing": f"Data inválida em '{campo}'. Use o formato AAAA-MM-DD.",
         "int_parsing": f"O campo '{campo}' precisa ser um número inteiro.",
         "greater_than_equal": f"O campo '{campo}' precisa ser no mínimo {ctx.get('ge')}.",
-        "less_than_equal": f"O campo '{campo}' precisa ser no máximo {ctx.get('le')}.",
+        "less_than_equal": f"O campo '{campo}' pode ser no máximo {ctx.get('le')}.",
         "json_invalid": "O corpo da requisição não é um JSON válido.",
     }
     if tipo == "value_error":
@@ -77,6 +88,8 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
         # Mensagens dos nossos próprios validadores já estão em português.
         return campo, str(erro.get("msg", "")).removeprefix("Value error, ")
     return campo, mensagens.get(tipo, f"Valor inválido em '{campo}'.")
+
+
 @app.exception_handler(RequestValidationError)
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError
@@ -85,7 +98,7 @@ async def tratar_erro_de_validacao(
    
     O padrão do FastAPI devolve `detail`  como uma lista de objetos em inglês -
     difícil de mostrar ao usuário. Aqui `detail` traz a primeira mensagem
-    pronta para exibir, e `erros` traz a lista completa,campo a campo.
+    pronta para exibir, e `erros` traz a lista completa, campo a campo.
     """
     erros = [
         {"campo": campo, "mensagem": mensagem}
@@ -95,9 +108,13 @@ async def tratar_erro_de_validacao(
         status_code=422,
         content={"detail": erros[0]["mensagem"] if erros else "Dados inválidos.", "erros": erros},
     )
+
+
 app.include_router(usuarios.router)
+app.include_router(tasks.router)
+
+
 @app.get("/", tags=["Status"], summary="Verificar se a API está no ar")
 def raiz() -> dict[str, str]:
     """Confirma que a API está no ar e indica onde está a documentação."""
     return {"mensagem": "Todo List API no ar", "documentacao": "/docs"}
- 
