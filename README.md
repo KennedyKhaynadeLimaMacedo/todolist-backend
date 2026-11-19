@@ -59,8 +59,8 @@ http://127.0.0.1:8000/docs
 
 ```json
 {
-  "nome": "Debora",
-  "email": "debora@example.com",
+  "nome": "Kennedy",
+  "email": "Kennedy@example.com",
   "senha": "senha123"
 }
 ```
