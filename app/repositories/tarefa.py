@@ -27,3 +27,13 @@ class TarefaRepositorio(RepositorioBase[Tarefa]):
             .order_by(Tarefa.criado_em.desc(), Tarefa.id.desc())
             .all()
         )
+
+    def todas_do_usuario(self, usuario_id: int) -> list[Tarefa]:
+        """Busca todas as tarefas de um usuário para análise."""
+
+        return (
+            self.sessao.query(Tarefa)
+            .filter(Tarefa.usuario_id == usuario_id)
+            .order_by(Tarefa.criado_em.desc(), Tarefa.id.desc())
+            .all()
+        )

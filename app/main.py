@@ -43,7 +43,7 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Todo List API",
     description="Backend do ToDo List - curso Desenvolvedor Full Stack (SENAC).",
-    version="0.9.0",
+    version="0.13.0",
     lifespan=ciclo_de_vida,
 )
 
@@ -88,8 +88,6 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
         # Mensagens dos nossos próprios validadores já estão em português.
         return campo, str(erro.get("msg", "")).removeprefix("Value error, ")
     return campo, mensagens.get(tipo, f"Valor inválido em '{campo}'.")
-
-
 @app.exception_handler(RequestValidationError)
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError
@@ -108,12 +106,8 @@ async def tratar_erro_de_validacao(
         status_code=422,
         content={"detail": erros[0]["mensagem"] if erros else "Dados inválidos.", "erros": erros},
     )
-
-
 app.include_router(usuarios.router)
 app.include_router(tasks.router)
-
-
 @app.get("/", tags=["Status"], summary="Verificar se a API está no ar")
 def raiz() -> dict[str, str]:
     """Confirma que a API está no ar e indica onde está a documentação."""

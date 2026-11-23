@@ -1,25 +1,25 @@
+"""Schemas Pydantic: o contrato de entrada e saída da API.
 
-"""Schemas Pydantic: contratos de entrada e saída da API."""
+Aqui mora a tradução entre dois mundos de nomenclatura. O Python escreve
+`usuario_id` e `criado_em`; o JSON que o front-end consome espera `usuarioId` e
+`criadoEm`. A conversão acontece **na borda**, que é o lugar dela: o domínio fala
+Python idiomático e estes schemas fazem a tradução automaticamente, pelo
+`alias_generator`. `populate_by_name=True` mantém a compatibilidade: a API
+aceita tanto `usuarioId` quanto `usuario_id` na entrada.
+"""
 
-from app.schemas.base import (
-    DataHoraUTC,
-    EsquemaDeEntrada,
-    EsquemaDeSaida,
-)
-
-from app.schemas.tarefa import TarefaCreate, TarefaUpdate, TarefaOut
-
-from app.schemas.usuario import (
-    SessaoOut,
-    UsuarioCreate,
-    UsuarioLogin,
-    UsuarioOut,
-)
+from app.schemas.analytics import AnalyticsOut, ConcluidasNoDia
+from app.schemas.base import DataHoraUTC, EsquemaDeEntrada, EsquemaDeSaida
+from app.schemas.tarefa import ResumoOut, TarefaCreate, TarefaOut, TarefaUpdate
+from app.schemas.usuario import SessaoOut, UsuarioCreate, UsuarioLogin, UsuarioOut
 
 __all__ = [
+    "AnalyticsOut",
+    "ConcluidasNoDia",
     "DataHoraUTC",
     "EsquemaDeEntrada",
     "EsquemaDeSaida",
+    "ResumoOut",
     "SessaoOut",
     "TarefaCreate",
     "TarefaOut",
