@@ -1,74 +1,35 @@
-# Todo List Backend — Kennedy
+# Todo List API — Backend
 
-API de gerenciamento de tarefas em desenvolvimento, criada com Python e FastAPI.
+API REST de gerenciamento de tarefas construída com Python, FastAPI, SQLAlchemy, Pydantic e pandas, desenvolvida no curso Desenvolvedor Full Stack — SENAC Minas Gerais (UC 2).
 
-## Tecnologias
+## Arquitetura em camadas
 
-- Python
-- FastAPI
-- SQLAlchemy
-- SQLite
-- Pydantic
-- bcrypt
+A aplicação segue separação em camadas para manter regras de domínio isoladas de HTTP e persistência:
 
-## Como executar
+- `app/api/` — rotas (`routers`), dependências (`UsuarioAtual`, injeção de serviços) e tratamento de erros HTTP.
+- `app/schemas/` — contratos de entrada e saída com Pydantic (`EsquemaDeSaida`, `AnalyticsOut`, etc.).
+- `app/services/` — regras de aplicação e análises de dados (`AnalyticsServico`, `TarefaServico`).
+- `app/models/` — entidades de domínio com comportamento próprio (`Tarefa`, `Usuario`) e enumerações (`PrioridadeTarefa`, `StatusTarefa`).
+- `app/repositories/` — acesso a dados via SQLAlchemy (`TarefaRepositorio`, etc.).
+- `app/db/` — configuração de conexão, sessão e criação de tabelas.
+- `app/core/` — configurações de ambiente, segurança/JWT e exceções de domínio.
 
-### 1. Criar e ativar o ambiente virtual
+## Pré-requisitos e instalação
 
-No Windows, pelo PowerShell:
+- Python 3.12+ (ou ambiente compatível com as dependências do `requirements.txt`)
+- `pip` e ambiente virtual (`venv`)
+
+No Windows (PowerShell), na raiz do projeto:
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-### 2. Instalar as dependências
-
-```powershell
 python -m pip install -r requirements.txt
-```
 
-### 3. Configurar o banco de dados
+Para subir a API em desenvolvimento:
 
-Se ainda não existir o arquivo `.env`, copie o modelo:
 
-```powershell
-Copy-Item .env.example .env
-```
+uvicorn app.main:app --reload
 
-A configuração inicial usa SQLite localmente.
+Documentação interativa disponível em http://127.0.0.1:8000/docs (ou http://localhost:8000/docs).
 
-### 4. Iniciar a API
-
-```powershell
-python -m uvicorn app.main:app --reload
-```
-
-### 5. Abrir a documentação
-
-Acesse:
-
-http://127.0.0.1:8000/docs
-
-## Rotas disponíveis
-
-- `GET /` — verifica se a API está funcionando.
-- `POST /usuarios` — cadastra um usuário.
-
-## Exemplo de cadastro
-
-```json
-{
-  "nome": "Kennedy",
-  "email": "kennedy@example.com",
-  "senha": "senha123"
-}
-```
-
-A senha é armazenada como hash. A resposta não deve expor a senha nem seu hash.
-
-## Observações
-
-- O arquivo `.env` não deve ser enviado ao Git.
-- O banco local `todo_list.db` também não deve ser enviado ao Git.
-- Este projeto está em desenvolvimento; o cadastro de usuários não significa que autenticação ou gerenciamento completo de tarefas já estejam implementados.

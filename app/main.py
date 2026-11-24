@@ -30,7 +30,7 @@ STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     """Confere a configuração e prepara o banco na subida da aplicação.
- 
+
     `segredo_jwt()` é chamado aqui de propósito: sem `JWT_SECRET`, a API se
     recusa a subir com uma mensagem explicando o que fazer - em vez de subir
     e só falhar no primeiro login.
@@ -42,8 +42,12 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Todo List API",
-    description="Backend do ToDo List - curso Desenvolvedor Full Stack (SENAC).",
-    version="0.13.0",
+    description=(
+        "Backend do ToDo List — curso Desenvolvedor Full Stack (SENAC).\n\n"
+        "Para usar as rotas protegidas: faça login em `POST /usuarios/login`, "
+        "copie o `accessToken` e cole no botão **Authorize**."
+    ),
+    version="1.0.0",
     lifespan=ciclo_de_vida,
 )
 
@@ -88,13 +92,15 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
         # Mensagens dos nossos próprios validadores já estão em português.
         return campo, str(erro.get("msg", "")).removeprefix("Value error, ")
     return campo, mensagens.get(tipo, f"Valor inválido em '{campo}'.")
+
+
 @app.exception_handler(RequestValidationError)
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError
 ) -> JSONResponse:
     """Responde 422 com `detail` sempre em TEXTO, em português.
-   
-    O padrão do FastAPI devolve `detail`  como uma lista de objetos em inglês -
+
+    O padrão do FastAPI devolve `detail` como uma lista de objetos em inglês -
     difícil de mostrar ao usuário. Aqui `detail` traz a primeira mensagem
     pronta para exibir, e `erros` traz a lista completa, campo a campo.
     """
@@ -106,8 +112,12 @@ async def tratar_erro_de_validacao(
         status_code=422,
         content={"detail": erros[0]["mensagem"] if erros else "Dados inválidos.", "erros": erros},
     )
+
+
 app.include_router(usuarios.router)
 app.include_router(tasks.router)
+
+
 @app.get("/", tags=["Status"], summary="Verificar se a API está no ar")
 def raiz() -> dict[str, str]:
     """Confirma que a API está no ar e indica onde está a documentação."""

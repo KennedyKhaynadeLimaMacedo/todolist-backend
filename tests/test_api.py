@@ -11,16 +11,16 @@ def test_cadastrar_usuario(cliente):
     resposta = cliente.post(
         "/usuarios",
         json={
-            "nome": "Debora",
-            "email": "DEBORA@EXEMPLO.COM",
+            "nome": "Kennedy",
+            "email": "KENNEDY@EXEMPLO.COM",
             "senha": "senha123",
         },
     )
 
     assert resposta.status_code == 201
     dados = resposta.json()
-    assert dados["nome"] == "Debora"
-    assert dados["email"] == "debora@exemplo.com"
+    assert dados["nome"] == "Kennedy"
+    assert dados["email"] == "kennedy@exemplo.com"
     assert "senha" not in dados
     assert "senhaHash" not in dados
     assert "criadoEm" in dados
@@ -30,7 +30,7 @@ def test_cadastro_rejeita_dados_invalidos(cliente):
     resposta = cliente.post(
         "/usuarios",
         json={
-            "nome": "Debora",
+            "nome": "Kennedy",
             "email": "email-invalido",
             "senha": "123",
         },
@@ -40,8 +40,8 @@ def test_cadastro_rejeita_dados_invalidos(cliente):
 
 def test_nao_permite_email_repetido(cliente):
     dados = {
-        "nome": "Debora",
-        "email": "D@exemplo.com",
+        "nome": "Kennedy",
+        "email": "K@exemplo.com",
         "senha": "senha123",
     }
 

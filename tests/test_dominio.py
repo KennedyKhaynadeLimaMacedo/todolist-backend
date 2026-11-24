@@ -15,7 +15,7 @@ class HashFake(HashDeSenha):
 
 
 def test_usuario_normaliza_email():
-    usuario = Usuario(nome="Debora", email="  TESTE@EXEMPLO.COM ")
+    usuario = Usuario(nome="Kennedy", email="  TESTE@EXEMPLO.COM ")
     assert usuario.email == "teste@exemplo.com"
 
 
@@ -25,7 +25,7 @@ def test_nome_vazio_e_rejeitado():
 
 
 def test_usuario_protege_e_confere_senha():
-    usuario = Usuario(nome="Debora", email="teste@exemplo.com")
+    usuario = Usuario(nome="Kennedy", email="teste@exemplo.com")
     hasher = HashFake()
     usuario.definir_senha("senha123", hasher)
 

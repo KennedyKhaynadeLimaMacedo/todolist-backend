@@ -150,10 +150,13 @@ def analytics_tasks(
         int, Query(ge=1, le=90, description="Tamanho da janela de 'concluídas por dia'")
     ] = 7,
 ) -> AnalyticsOut:
-    """Taxa de conclusão, concluídas por dia e pendentes por prioridade."""
+    """Taxa de conclusão, concluídas por dia, pendentes por prioridade, tempo
+    médio para concluir, conclusões por dia da semana e percentual no prazo.
+
+    Os quatro primeiros números são os mesmos que a página Analytics do
+    front-end calcula hoje no navegador.
+    """
     return servico.calcular(usuario.id, dias=dias)
-
-
 @router.get(
     "/{tarefa_id}",
     response_model=TarefaOut,
@@ -163,7 +166,6 @@ def analytics_tasks(
 def buscar_task(tarefa_id: int, usuario: UsuarioAtual, servico: Servico) -> TarefaOut:
     """Devolve uma tarefa do usuário logado."""
     return servico.buscar(tarefa_id, usuario.id)
-
 
 @router.patch(
     "/{tarefa_id}",

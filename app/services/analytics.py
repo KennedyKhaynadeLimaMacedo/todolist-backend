@@ -1,109 +1,47 @@
-"""Análise de dados das tarefas com pandas — os números da página Analytics.
-
-Transforma a lista de tarefas numa tabela e responde perguntas
-sobre a tabela inteira de uma vez, sem for.
-"""
+"""Análise de dados das tarefas com pandas — os números da página Analytics."""
 from __future__ import annotations
-
 import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-
 import pandas as pd
-
 from app.models import Tarefa
 from app.models.enums import PrioridadeTarefa, StatusTarefa
 from app.repositories import TarefaRepositorio
 
+# Nomes dos dias da semana na ordem do pandas: `dayofweek` 0 = segunda ... 6 = domingo.
+DIAS_DA_SEMANA = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
 
 def arredondar(valor: float) -> int:
-    """Arredonda como o Math.round do JavaScript: 12,5 → 13 (não 12).
-
-    O round() do Python usa 'banker's rounding': 12,5 vira 12.
-    math.floor(valor + 0.5) soma meio e corta para baixo, reproduzindo
-    o comportamento do front-end.
-    """
+    """Arredonda como o `Math.round` do JavaScript: 12,5 vira 13."""
     return math.floor(valor + 0.5)
-
 
 @dataclass(frozen=True)
 class Analytics:
     """Resultado da análise das tarefas de um usuário."""
-
     total: int
     concluidas: int
     taxa_conclusao: int
     concluidas_na_janela: int
     concluidas_por_dia: list[dict]
     pendentes_por_prioridade: dict[PrioridadeTarefa, int]
-
+    tempo_medio_conclusao_dias: float | None
+    concluidas_por_dia_da_semana: dict[str, int]
+    percentual_no_prazo: int | None
 
 class AnalyticsServico:
     """Calcula as análises da página Analytics a partir das tarefas do usuário."""
-
     def __init__(self, tarefas: TarefaRepositorio) -> None:
-        self._tarefas = tarefas
-
-    # --- a tabela
-
-    @staticmethod
-    def _montar_tabela(tarefas: list[Tarefa]) -> pd.DataFrame:
-        """Transforma a lista de tarefas num DataFrame — uma linha por tarefa."""
-        fuso_do_servidor = datetime.now().astimezone().tzinfo
-
-        tabela = pd.DataFrame({
-            "status":       [t.status.value for t in tarefas],
-            "prioridade":   [t.prioridade for t in tarefas],
-            "concluido_em": [t.concluido_em for t in tarefas],
-        })
-
-        tabela["concluido_em"] = pd.to_datetime(
-            tabela["concluido_em"],
-            utc=True,
-        ).dt.tz_convert(fuso_do_servidor)
-
-        # Só o dia da conclusão (sem hora), para agrupar por dia.
-        tabela["dia_conclusao"] = tabela["concluido_em"].dt.date
-
-        return tabela
-
-    # --- as métricas
-
-    @staticmethod
-    def _concluidas_por_dia(concluidas: pd.DataFrame, dias: int, hoje: date) -> list[dict]:
-        """Quantas tarefas foram concluídas em cada um dos últimos `dias` dias."""
-        janela = [hoje - timedelta(days=n) for n in range(dias - 1, -1, -1)]
-
-        contagem = (
-            concluidas["dia_conclusao"]
-            .value_counts()
-            .reindex(janela, fill_value=0)
-        )
-
-        return [{"dia": dia, "quantidade": int(qtd)} for dia, qtd in contagem.items()]
-
-    @staticmethod
-    def _pendentes_por_prioridade(pendentes: pd.DataFrame) -> dict[PrioridadeTarefa, int]:
-        """Quantas tarefas pendentes há em cada prioridade, da mais urgente à menor."""
-        ordem = [p.value for p in sorted(PrioridadeTarefa, key=lambda p: p.peso)]
-
-        contagem = pendentes["prioridade"].value_counts().reindex(ordem, fill_value=0)
-
-        return {PrioridadeTarefa(prioridade): int(qtd) for prioridade, qtd in contagem.items()}
+        self.tarefas = tarefas
 
     def calcular(self, usuario_id: int, dias: int = 7, hoje: date | None = None) -> Analytics:
-        """Calcula as análises da página Analytics a partir das tarefas do usuário."""
+        """Monta a tabela de tarefas do usuário e calcula as 7 métricas."""
         hoje = hoje or date.today()
-        tabela = self._montar_tabela(self._tarefas.todas_do_usuario(usuario_id))
-
-        # tabela[concluida] devolve uma coluna de True/False, uma linha por tarefa.
-        concluida  = tabela["status"] == StatusTarefa.CONCLUIDA.value
-        concluidas = tabela[concluida]   # só as linhas em que o valor é True
-        pendentes  = tabela[~concluida]  # ~ inverte: True vira False e vice-versa
-
-        total   = len(tabela)
+        tabela = self._montar_tabela(self.tarefas.todas_do_usuario(usuario_id))
+        concluida = tabela["status"] == StatusTarefa.CONCLUIDA.value
+        concluidas = tabela[concluida]
+        pendentes = tabela[~concluida]  # `~` inverte: True vira False e vice-versa
+        total = len(tabela)
         por_dia = self._concluidas_por_dia(concluidas, dias, hoje)
-
         return Analytics(
             total=total,
             concluidas=len(concluidas),
@@ -111,4 +49,70 @@ class AnalyticsServico:
             concluidas_na_janela=sum(item["quantidade"] for item in por_dia),
             concluidas_por_dia=por_dia,
             pendentes_por_prioridade=self._pendentes_por_prioridade(pendentes),
+            tempo_medio_conclusao_dias=self._tempo_medio_conclusao(concluidas),
+            concluidas_por_dia_da_semana=self._por_dia_da_semana(concluidas),
+            percentual_no_prazo=self._percentual_no_prazo(concluidas),
         )
+
+    # ------------------------------------------------------------------ tabela
+    @staticmethod
+    def _montar_tabela(tarefas: list[Tarefa]) -> pd.DataFrame:
+        """Transforma a lista de tarefas num DataFrame (uma linha por tarefa)."""
+        fuso_do_servidor = datetime.now().astimezone().tzinfo
+        tabela = pd.DataFrame(
+            {
+                "status": [t.status.value for t in tarefas],
+                "prioridade": [t.prioridade for t in tarefas],
+                "prazo": [t.prazo for t in tarefas],
+                "criado_em": [t.criado_em for t in tarefas],
+                "concluido_em": [t.concluido_em for t in tarefas],
+            }
+        )
+        for coluna in ("criado_em", "concluido_em"):
+            tabela[coluna] = pd.to_datetime(tabela[coluna], utc=True).dt.tz_convert(
+                fuso_do_servidor
+            )
+        # Só o DIA da conclusão (sem hora), para agrupar por dia.
+        tabela["dia_conclusao"] = tabela["concluido_em"].dt.date
+        return tabela
+
+    # --------------------------------------- as métricas que o front já usa
+    @staticmethod
+    def _concluidas_por_dia(concluidas: pd.DataFrame, dias: int, hoje: date) -> list[dict]:
+        """Quantas tarefas foram concluídas em cada um dos últimos `dias` dias."""
+        janela = [hoje - timedelta(days=n) for n in range(dias - 1, -1, -1)]
+        contagem = concluidas["dia_conclusao"].value_counts().reindex(janela, fill_value=0)
+        return [{"dia": dia, "quantidade": int(qtd)} for dia, qtd in contagem.items()]
+
+    @staticmethod
+    def _pendentes_por_prioridade(pendentes: pd.DataFrame) -> dict[PrioridadeTarefa, int]:
+        """Quantas tarefas pendentes há em cada prioridade, da mais urgente à menor."""
+        ordem = [p.value for p in sorted(PrioridadeTarefa, key=lambda p: p.peso)]
+        contagem = pendentes["prioridade"].value_counts().reindex(ordem, fill_value=0)
+        return {PrioridadeTarefa(prioridade): int(qtd) for prioridade, qtd in contagem.items()}
+
+    # ---------------------------------------------- análises novas (pandas)
+    @staticmethod
+    def _tempo_medio_conclusao(concluidas: pd.DataFrame) -> float | None:
+        """Em média, quantos dias uma tarefa leva da criação até ser concluída."""
+        if concluidas.empty:
+            return None
+        duracao = concluidas["concluido_em"] - concluidas["criado_em"]
+        return round(float((duracao.dt.total_seconds() / 86400).mean()), 1)
+
+    @staticmethod
+    def _por_dia_da_semana(concluidas: pd.DataFrame) -> dict[str, int]:
+        """Em que dias da semana as tarefas são concluídas (todo o histórico)."""
+        contagem = (
+            concluidas["concluido_em"].dt.dayofweek.value_counts().reindex(range(7), fill_value=0)
+        )
+        return {DIAS_DA_SEMANA[numero]: int(qtd) for numero, qtd in contagem.items()}
+
+    @staticmethod
+    def _percentual_no_prazo(concluidas: pd.DataFrame) -> int | None:
+        """Das tarefas concluídas que tinham prazo, quantas % foram no prazo."""
+        com_prazo = concluidas[concluidas["prazo"].notna()]
+        if com_prazo.empty:
+            return None
+        no_prazo = com_prazo["dia_conclusao"] <= com_prazo["prazo"]
+        return arredondar(no_prazo.mean() * 100)  # média de True/False = proporção de True
