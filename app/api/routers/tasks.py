@@ -7,10 +7,8 @@ from app.api.dependencies import UsuarioAtual, obter_analytics_servico, obter_ta
 from app.models.enums import PrioridadeTarefa, StatusTarefa
 from app.schemas import AnalyticsOut, ResumoOut, TarefaCreate, TarefaOut, TarefaUpdate
 from app.services import AlteracoesDaTarefa, AnalyticsServico, TarefaServico
-
 CampoOrdenacao = Literal["criado_em", "prazo", "prioridade", "titulo", "atualizado_em"]
 Ordem = Literal["asc", "desc"]
-
 
 @dataclass
 class FiltroDeTarefas:
@@ -23,8 +21,6 @@ class FiltroDeTarefas:
     ordem: Ordem = "desc"
     limite: int = 100
     deslocamento: int = 0
-
-
 router = APIRouter(
     prefix="/tasks",
     tags=["Tarefas"],
@@ -35,13 +31,9 @@ _RESPOSTAS_DE_UMA_TAREFA = {
     403: {"description": "A tarefa pertence a outro usuário"},
     404: {"description": "Tarefa não encontrada"},
 }
-
-
 def _montar_alteracoes(dados: TarefaUpdate) -> AlteracoesDaTarefa:
     """Converte o corpo do PATCH em alterações de domínio."""
     return AlteracoesDaTarefa(**dados.model_dump(exclude_unset=True))
-
-
 @router.post(
     "",
     response_model=TarefaOut,
@@ -56,8 +48,6 @@ def criar_task(dados: TarefaCreate, usuario: UsuarioAtual, servico: Servico) -> 
         prioridade=dados.prioridade,
         prazo=dados.prazo,
     )
-
-
 @router.get(
     "",
     response_model=list[TarefaOut],
@@ -102,8 +92,6 @@ def listar_tasks(
         return resultado.tarefas
     response.headers["X-Total-Count"] = str(len(resultado))
     return resultado
-
-
 @router.get(
     "/resumo",
     response_model=ResumoOut,
@@ -114,7 +102,6 @@ def resumo_tasks(usuario: UsuarioAtual, servico: Servico) -> Any:
     resumo_fn = getattr(servico, "resumo", None)
     if callable(resumo_fn):
         return resumo_fn(usuario.id)
-
     tarefas = servico.listar(usuario.id)
     hoje = date.today()
     concluidos = {"concluida", "concluída", "done", "completed"}
@@ -136,8 +123,6 @@ def resumo_tasks(usuario: UsuarioAtual, servico: Servico) -> Any:
         "concluidas": concluidas,
         "atrasadas": atrasadas,
     }
-
-
 @router.get(
     "/analytics",
     response_model=AnalyticsOut,
@@ -166,7 +151,6 @@ def analytics_tasks(
 def buscar_task(tarefa_id: int, usuario: UsuarioAtual, servico: Servico) -> TarefaOut:
     """Devolve uma tarefa do usuário logado."""
     return servico.buscar(tarefa_id, usuario.id)
-
 @router.patch(
     "/{tarefa_id}",
     response_model=TarefaOut,
@@ -178,8 +162,6 @@ def atualizar_task(
 ) -> TarefaOut:
     """Atualiza parcialmente uma tarefa."""
     return servico.atualizar(tarefa_id, usuario.id, _montar_alteracoes(dados))
-
-
 @router.delete(
     "/{tarefa_id}",
     status_code=status.HTTP_204_NO_CONTENT,
