@@ -1,11 +1,15 @@
+
 """Ponto de entrada: cria o app, registra as rotas e traduz erros em HTTP."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
 from app.api.routers import tasks, usuarios
 from app.core.config import obter_configuracao
 from app.core.exceptions import (
@@ -17,6 +21,7 @@ from app.core.exceptions import (
     RegraDeNegocioViolada,
 )
 from app.db.database import criar_tabelas
+
 
 STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
     (RecursoNaoEncontrado, 404),
@@ -52,17 +57,31 @@ app = FastAPI(
 )
 
 
+# Libera a comunicação entre o front-end Vite e a API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(obter_configuracao().cors_origins),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.exception_handler(ErroDeDominio)
 async def tratar_erro_de_dominio(
     _request: Request, excecao: ErroDeDominio
 ) -> JSONResponse:
     """Converte qualquer erro de domínio na resposta HTTP correspondente."""
     codigo = next(
-        (codigo for tipo, codigo in STATUS_POR_ERRO if isinstance(excecao, tipo)), 400
+        (codigo for tipo, codigo in STATUS_POR_ERRO if isinstance(excecao, tipo)),
+        400,
     )
     cabecalhos = {"WWW-Authenticate": "Bearer"} if codigo == 401 else None
+
     return JSONResponse(
-        status_code=codigo, content={"detail": excecao.mensagem}, headers=cabecalhos
+        status_code=codigo,
+        content={"detail": excecao.mensagem},
+        headers=cabecalhos,
     )
 
 
@@ -71,26 +90,42 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
     campo = str(erro["loc"][-1]) if erro.get("loc") else "dados"
     tipo = erro.get("type", "")
     ctx = erro.get("ctx", {})
+
     mensagens = {
         "missing": f"O campo '{campo}' é obrigatório.",
-        "string_too_short": f"O campo '{campo}' precisa ter pelo menos "
-        f"{ctx.get('min_length')} caractere(s).",
-        "string_too_long": f"O campo '{campo}' pode ter no máximo "
-        f"{ctx.get('max_length')} caracteres.",
-        "enum": f"Valor inválido para '{campo}'. Valores aceitos: "
-        f"{str(ctx.get('expected', '')).replace(' or ', ', ou ')}.",
+        "string_too_short": (
+            f"O campo '{campo}' precisa ter pelo menos "
+            f"{ctx.get('min_length')} caractere(s)."
+        ),
+        "string_too_long": (
+            f"O campo '{campo}' pode ter no máximo "
+            f"{ctx.get('max_length')} caracteres."
+        ),
+        "enum": (
+            f"Valor inválido para '{campo}'. Valores aceitos: "
+            f"{str(ctx.get('expected', '')).replace(' or ', ', ou ')}."
+        ),
         "date_parsing": f"Data inválida em '{campo}'. Use o formato AAAA-MM-DD.",
-        "date_from_datetime_parsing": f"Data inválida em '{campo}'. Use o formato AAAA-MM-DD.",
+        "date_from_datetime_parsing": (
+            f"Data inválida em '{campo}'. Use o formato AAAA-MM-DD."
+        ),
         "int_parsing": f"O campo '{campo}' precisa ser um número inteiro.",
-        "greater_than_equal": f"O campo '{campo}' precisa ser no mínimo {ctx.get('ge')}.",
-        "less_than_equal": f"O campo '{campo}' pode ser no máximo {ctx.get('le')}.",
+        "greater_than_equal": (
+            f"O campo '{campo}' precisa ser no mínimo {ctx.get('ge')}."
+        ),
+        "less_than_equal": (
+            f"O campo '{campo}' pode ser no máximo {ctx.get('le')}."
+        ),
         "json_invalid": "O corpo da requisição não é um JSON válido.",
     }
+
     if tipo == "value_error":
         if campo == "email":
             return campo, "E-mail inválido."
+
         # Mensagens dos nossos próprios validadores já estão em português.
         return campo, str(erro.get("msg", "")).removeprefix("Value error, ")
+
     return campo, mensagens.get(tipo, f"Valor inválido em '{campo}'.")
 
 
@@ -106,11 +141,17 @@ async def tratar_erro_de_validacao(
     """
     erros = [
         {"campo": campo, "mensagem": mensagem}
-        for campo, mensagem in map(_mensagem_de_validacao, excecao.errors())
+        for campo, mensagem in map(
+            _mensagem_de_validacao, excecao.errors()
+        )
     ]
+
     return JSONResponse(
         status_code=422,
-        content={"detail": erros[0]["mensagem"] if erros else "Dados inválidos.", "erros": erros},
+        content={
+            "detail": erros[0]["mensagem"] if erros else "Dados inválidos.",
+            "erros": erros,
+        },
     )
 
 
